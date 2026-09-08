@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Neon serverless driver must run unbundled (it manages its own HTTP/WebSocket layer).
+  serverExternalPackages: ["@neondatabase/serverless"],
 };
 
 export default nextConfig;
