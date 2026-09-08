@@ -4,6 +4,13 @@ import { clientKey, isRecord, rateLimit, str } from '../_lib';
 
 export const dynamic = 'force-dynamic';
 
+// Temporary boot diagnostic (host shape only — never logs secrets).
+try {
+  const u = process.env.DATABASE_URL ?? '';
+  const m = u.match(/^postgres(?:ql)?:\/\/[^@]+@([^/?]+)/);
+  console.log('[pulse/sync boot] db host:', m ? m[1] : `missing-or-malformed (len ${u.length})`);
+} catch { /* ignore */ }
+
 const noStore = { 'Cache-Control': 'no-store' };
 const MAX_BYTES = 4_000_000;
 
