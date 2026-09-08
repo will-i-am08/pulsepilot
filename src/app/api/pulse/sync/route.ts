@@ -31,7 +31,8 @@ export async function GET(req: Request) {
     const rows = (await db`select payload, updated_at from pulse_snapshots where workspace_id = ${id}`) as { payload: unknown; updated_at: string }[];
     if (rows.length === 0) return NextResponse.json({ error: 'No cloud backup for this workspace yet.' }, { status: 404, headers: noStore });
     return NextResponse.json({ payload: rows[0].payload, updatedAt: rows[0].updated_at }, { headers: noStore });
-  } catch {
+  } catch (e) {
+    console.error('[pulse/sync GET]', e instanceof Error ? e.message : String(e).slice(0, 300));
     return NextResponse.json({ error: 'Backup fetch failed — try again in a moment.' }, { status: 500, headers: noStore });
   }
 }
@@ -58,7 +59,8 @@ export async function POST(req: Request) {
       values (${workspaceId}, ${labelStr}, ${raw}::jsonb)
       on conflict (workspace_id) do update set label = excluded.label, payload = excluded.payload`;
     return NextResponse.json({ ok: true }, { headers: noStore });
-  } catch {
+  } catch (e) {
+    console.error('[pulse/sync POST]', e instanceof Error ? e.message : String(e).slice(0, 300));
     return NextResponse.json({ error: 'Backup save failed — try again in a moment.' }, { status: 500, headers: noStore });
   }
 }
