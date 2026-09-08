@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/competitor-tick",
-      "schedule": "0 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/generate-event",
