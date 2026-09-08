@@ -13,14 +13,18 @@ export async function signUpWithEmail(
     return { error: 'Email address must be provided.' };
   }
 
-  const { error } = await auth.signUp.email({
-    email,
-    name: formData.get('name') as string,
-    password: formData.get('password') as string,
-  });
+  try {
+    const { error } = await auth.signUp.email({
+      email,
+      name: formData.get('name') as string,
+      password: formData.get('password') as string,
+    });
 
-  if (error) {
-    return { error: error.message || 'Failed to create account' };
+    if (error) {
+      return { error: error.message || 'Failed to create account' };
+    }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Failed to create account. Try again.' };
   }
 
   redirect('/');
