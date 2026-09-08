@@ -1,0 +1,76 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: PulsePilot
+      - paragraph [ref=e6]: Est. 2026 · Brisbane, AU · by Pulse Social Media
+    - generic [ref=e7]:
+      - paragraph [ref=e8]: For owners, not marketing departments
+      - heading "The socials, handled. You sign off — or hand over the keys." [level=1] [ref=e9]
+      - paragraph [ref=e10]: Five posts a week, approved in ten minutes — across Instagram, TikTok, Facebook and LinkedIn. Six agents plan the week, write the copy, set the visuals, queue the posts and report what worked. Copilot keeps you in charge. Autopilot runs the whole thing while you run the business.
+      - generic [ref=e11]:
+        - button "Start 14-day free trial" [ref=e12]
+        - button "See a sample week first" [ref=e13]
+      - paragraph [ref=e14]: No card · Your work saves in this browser · Cancel by email, no dark patterns
+      - generic [ref=e15]:
+        - paragraph [ref=e16]: Who stands behind it
+        - paragraph [ref=e17]:
+          - text: PulsePilot is built by
+          - strong [ref=e18]: Pulse Social Media
+          - text: ", Brisbane — the crew that runs socials for paying clients every week. The agents do what our strategists do: plan, write, direct, queue, measure. If the crew does not save you five hours in week one, month one is refunded. Write to will@jmcalder.com and a human answers."
+      - generic [ref=e19]:
+        - paragraph [ref=e20]: How one week works
+        - generic [ref=e21]:
+          - generic [ref=e22]:
+            - paragraph [ref=e23]: "01"
+            - heading "Monday — Nova plans" [level=2] [ref=e24]
+            - paragraph [ref=e25]: A week of posts across your pillars, matched to your offer and what converted last week. A plan, not a pile of ideas.
+          - generic [ref=e26]:
+            - paragraph [ref=e27]: "02"
+            - heading "Midweek — Pen & Frame produce" [level=2] [ref=e28]
+            - paragraph [ref=e29]: "Every post arrives with hooks, captions, hashtags, scripts and visual notes, in your voice. Your job: tap approve."
+          - generic [ref=e30]:
+            - paragraph [ref=e31]: "03"
+            - heading "Friday — Clock & Lens close the loop" [level=2] [ref=e32]
+            - paragraph [ref=e33]: Posts queue at best times. Lens scores each one out of 100 and tells you what to repeat and what to drop.
+      - generic [ref=e34]:
+        - paragraph [ref=e35]: Two ways to run it
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - paragraph [ref=e38]: Copilot — start here
+            - heading "You sign off. Nothing moves without you." [level=2] [ref=e39]
+            - paragraph [ref=e40]: Agents draft everything; posts queue only when you tap twice. For new brands, agencies with clients, and anyone tired of tools that post without asking.
+          - generic [ref=e41]:
+            - paragraph [ref=e42]: Autopilot — the done-for-you tier
+            - heading "They run it. You read the report." [level=2] [ref=e43]
+            - paragraph [ref=e44]: Agents draft, queue and publish the week alone. Anything touching your banned words waits for review. Guardrails stay on either way.
+      - generic [ref=e45]:
+        - generic [ref=e46]:
+          - paragraph [ref=e47]: Pricing — flat per brand, in Australian dollars
+          - group "Billing period" [ref=e48]:
+            - button "Monthly" [pressed] [ref=e49]
+            - button "Annual — 2 months free" [ref=e50]
+        - generic [ref=e51]:
+          - generic [ref=e52]:
+            - paragraph [ref=e53]: Pulse plan
+            - paragraph [ref=e54]: $19/mo AUD
+            - paragraph [ref=e55]: 1 brand · unlimited words · 60 queued posts · email support
+            - button "Start 14-day free trial" [ref=e56]
+          - generic [ref=e57]:
+            - paragraph [ref=e58]: Most chosen
+            - paragraph [ref=e59]: $29/mo AUD
+            - paragraph [ref=e60]: Pilot
+            - paragraph [ref=e61]: 3 brands · trend radar · client sign-off sheets · week reports
+            - button "Start 14-day free trial" [ref=e62]
+          - generic [ref=e63]:
+            - paragraph [ref=e64]: Studio plan
+            - paragraph [ref=e65]: $49/mo AUD
+            - paragraph [ref=e66]: 10 brands · priority support · quarterly voice tune-up with us
+            - button "Start 14-day free trial" [ref=e67]
+        - paragraph [ref=e68]: Prices include GST · Invoices on every plan · Full terms below
+      - generic [ref=e69]:
+        - link "Terms, refunds & AI disclosure" [ref=e70] [cursor=pointer]:
+          - /url: /terms
+        - link "Privacy — your data stays yours" [ref=e71] [cursor=pointer]:
+          - /url: /privacy
+        - generic [ref=e72]: Pulse Social Media · Brisbane · will@jmcalder.com
+  - button "Open Next.js Dev Tools" [ref=e78] [cursor=pointer]

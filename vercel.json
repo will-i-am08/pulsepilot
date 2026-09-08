@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/competitor-tick",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/generate-event",
+      "schedule": "0 9 * * *"
+    }
+  ]
+}

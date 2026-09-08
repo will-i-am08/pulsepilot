@@ -1,26 +1,189 @@
 @import "tailwindcss";
 
+/* PulsePilot — "print studio" identity.
+   Paper + ink + one confident ember accent. Serif display, grotesque body,
+   mono kickers, hairline rules, grain. Deliberately no purple gradients. */
+
+@theme {
+  --color-paper: #f4efe4;
+  --color-cream: #fbf8f0;
+  --color-card: #faf6ec;
+  --color-ink: #1c1712;
+  --color-inksoft: #4e463c;
+  --color-faint: #625845;
+  --color-line: #ddd2bd;
+  --color-ember: #c2481b;
+  --color-emberdeep: #9c3512;
+  --color-moss: #2e5b3e;
+  --color-mossbg: #e4ebdf;
+  --color-gold: #9a7414;
+  --color-blush: #f3e2d3;
+
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, monospace;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--color-paper);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-ember);
+  color: #fff;
+}
+
+/* Film grain over the whole app — barely there, felt more than seen */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* Editorial building blocks */
+.kicker {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-faint);
+}
+
+.rule {
+  border-top: 1px solid var(--color-line);
+}
+
+.pp-card {
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+}
+
+.pp-card-raised {
+  background: var(--color-cream);
+  border: 1px solid var(--color-ink);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 0 var(--color-ink);
+}
+
+.btn-ember {
+  background: var(--color-ember);
+  color: #fff;
+  border: 1px solid var(--color-emberdeep);
+  border-radius: 8px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 0 var(--color-ink);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.btn-ember:hover {
+  background: var(--color-emberdeep);
+}
+.btn-ember:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 var(--color-ink);
+}
+
+.btn-ink {
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border: 1px solid var(--color-ink);
+  border-radius: 8px;
+  font-weight: 600;
+  transition: background 0.12s ease;
+}
+.btn-ink:hover {
+  background: #000;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-ink);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  font-weight: 600;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.btn-ghost:hover {
+  border-color: var(--color-ink);
+  background: var(--color-cream);
+}
+
+.field {
+  width: 100%;
+  background: var(--color-cream);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 16px;
+  color: var(--color-ink);
+  outline: none;
+}
+.field:focus {
+  border-color: var(--color-ember);
+  box-shadow: 0 0 0 2px rgba(194, 72, 27, 0.18);
+}
+
+.tab-active {
+  background: var(--color-ink);
+  color: var(--color-paper);
+}
+.tab-idle {
+  color: var(--color-inksoft);
+}
+.tab-idle:hover {
+  background: rgba(28, 23, 18, 0.07);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-ember);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+/* Thin styled scrollbars for feed columns */
+.nice-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.nice-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-line);
+  border-radius: 8px;
+}
+
+input[type="range"] {
+  accent-color: var(--color-ember);
+  min-height: 32px;
 }

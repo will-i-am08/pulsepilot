@@ -1,0 +1,108 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e78] [cursor=pointer]
+  - alert [ref=e82]
+  - generic [ref=e83]:
+    - link "Skip to workspace" [ref=e84] [cursor=pointer]:
+      - /url: "#workspace"
+    - heading "PulsePilot workspace — Harbour Café" [level=1] [ref=e85]
+    - banner [ref=e86]:
+      - generic [ref=e87]:
+        - generic [ref=e88]: PulsePilot
+        - generic [ref=e89]: The marketing crew
+        - generic [ref=e90]: Business on the desk
+        - combobox "Business on the desk" [ref=e91]:
+          - option "Harbour Café" [selected]
+        - generic [ref=e92]: Copilot · on
+        - generic [ref=e93]:
+          - button "Switch to Autopilot" [ref=e94]
+          - button "+ Business" [ref=e95]
+      - navigation "Workspace sections" [ref=e96]:
+        - tablist "Workspace sections" [ref=e97]:
+          - tab "Create 5 awaiting sign-off" [selected] [ref=e98]:
+            - generic [aria-hidden] [ref=e99]: "01"
+            - text: Create
+            - generic "5 awaiting sign-off" [ref=e100]: "5"
+          - tab "Calendar" [ref=e101]:
+            - generic [aria-hidden] [ref=e102]: "02"
+            - text: Calendar
+          - tab "Agents" [ref=e103]:
+            - generic [aria-hidden] [ref=e104]: "03"
+            - text: Agents
+          - tab "Results" [ref=e105]:
+            - generic [aria-hidden] [ref=e106]: "04"
+            - text: Results
+          - tab "Trends" [ref=e107]:
+            - generic [aria-hidden] [ref=e108]: "05"
+            - text: Trends
+          - tab "Setup" [ref=e109]:
+            - generic [aria-hidden] [ref=e110]: "06"
+            - text: Setup
+    - tabpanel [ref=e111]:
+      - generic [ref=e112]:
+        - paragraph [ref=e113]: "Copilot — every post needs your sign-off. Two taps: approve, then queue."
+        - generic [ref=e114]:
+          - button "Plan the week (5)" [ref=e115]
+          - button "+ New post" [ref=e116]
+          - button "Run autopilot tick" [ref=e117]
+          - button "Copy client sign-off sheet" [ref=e118]
+          - generic [ref=e119]: 5 posts · copilot mode
+        - generic [ref=e120]:
+          - generic [ref=e121]:
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - paragraph [ref=e124]: Ideas
+                - paragraph [ref=e125]: "0"
+              - paragraph [ref=e127]: — nothing filed —
+            - generic [ref=e128]:
+              - generic [ref=e129]:
+                - paragraph [ref=e130]: Drafts
+                - paragraph [ref=e131]: "5"
+              - generic [ref=e132]:
+                - button "How we a steady flow of bookings for locals who work nearby in 14 days (full breakdown). Proof & Results, carousel, tiktok" [ref=e133]:
+                  - paragraph [ref=e134]: How we a steady flow of bookings for locals who work nearby in 14 days (full breakdown)
+                  - paragraph [ref=e135]: Proof & Results · carousel · tiktok
+                - button "The content mistake costing you bookings. Offers, reel, instagram" [ref=e136]:
+                  - paragraph [ref=e137]: The content mistake costing you bookings
+                  - paragraph [ref=e138]: Offers · reel · instagram
+                - 'button "locals who work nearby: read this before you book. Proof & Results, carousel, tiktok" [ref=e139]':
+                  - paragraph [ref=e140]: "locals who work nearby: read this before you book"
+                  - paragraph [ref=e141]: Proof & Results · carousel · tiktok
+                - button "3 posting every locals who work nearby wishes they knew sooner. Education, poll, facebook" [ref=e142]:
+                  - paragraph [ref=e143]: 3 posting every locals who work nearby wishes they knew sooner
+                  - paragraph [ref=e144]: Education · poll · facebook
+                - 'button "locals who work nearby: read this before you book. Offers, story, instagram" [ref=e145]':
+                  - paragraph [ref=e146]: "locals who work nearby: read this before you book"
+                  - paragraph [ref=e147]: Offers · story · instagram
+            - generic [ref=e148]:
+              - generic [ref=e149]:
+                - paragraph [ref=e150]: Awaiting sign-off
+                - paragraph [ref=e151]: "0"
+              - paragraph [ref=e153]: — nothing filed —
+            - generic [ref=e154]:
+              - generic [ref=e155]:
+                - paragraph [ref=e156]: Queued
+                - paragraph [ref=e157]: "0"
+              - paragraph [ref=e159]: — nothing filed —
+            - generic [ref=e160]:
+              - generic [ref=e161]:
+                - paragraph [ref=e162]: Published
+                - paragraph [ref=e163]: "0"
+              - paragraph [ref=e165]: — nothing filed —
+            - generic [ref=e166]:
+              - generic [ref=e167]:
+                - paragraph [ref=e168]: Scored
+                - paragraph [ref=e169]: "0"
+              - paragraph [ref=e171]: — nothing filed —
+          - generic [ref=e173]:
+            - paragraph [ref=e174]: The desk
+            - heading "Choose a post to review it." [level=2] [ref=e175]
+            - paragraph [ref=e176]: Read the copy, check the slides and script — then sign off, queue or publish.
+    - contentinfo [ref=e177]:
+      - generic [ref=e178]:
+        - paragraph [ref=e179]: PulsePilot — set in Fraunces & Space Grotesk.
+        - paragraph [ref=e180]:
+          - link "Terms" [ref=e181] [cursor=pointer]:
+            - /url: /terms
+          - link "Privacy" [ref=e182] [cursor=pointer]:
+            - /url: /privacy
+          - generic [ref=e183]: Pulse Social Media, Brisbane
