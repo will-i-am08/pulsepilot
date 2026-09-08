@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AGENTS } from '@/lib/pulse/agents';
 import { usePulse } from '@/lib/pulse/store';
+import { useR1 } from '@/lib/pulse/extras';
 import type { AgentId } from '@/lib/pulse/types';
 
 const MONOGRAM: Record<AgentId, { initials: string; beat: string; name: string }> = {
@@ -57,6 +58,7 @@ export default function Fleet() {
   const activeBusinessId = usePulse((s) => s.activeBusinessId);
   const contents = usePulse((s) => s.contents);
   const runs = usePulse((s) => s.runs);
+  const activity = useR1((s) => s.activity);
   const biz = businesses.find((b) => b.id === activeBusinessId) ?? null;
 
   const [chatAgent, setChatAgent] = useState<AgentId>('strategist');
@@ -65,6 +67,15 @@ export default function Fleet() {
   const [busy, setBusy] = useState(false);
 
   const bizRuns = useMemo(() => runs.filter((r) => !r.businessId || r.businessId === biz?.id).slice().reverse().slice(0, 30), [runs, biz?.id]);
+  const timeline = useMemo(() => {
+    const runRows = runs
+      .filter((r) => !r.businessId || r.businessId === biz?.id)
+      .map((r) => ({ id: r.id, kind: r.agent.replace('_', ' '), summary: r.summary, createdAt: r.createdAt, agent: r.agent as AgentId | null, status: r.status }));
+    const actRows = activity
+      .filter((a) => !a.businessId || a.businessId === biz?.id)
+      .map((a) => ({ id: a.id, kind: a.kind, summary: a.summary, createdAt: a.createdAt, agent: null as AgentId | null, status: '' }));
+    return [...runRows, ...actRows].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 40);
+  }, [runs, activity, biz?.id]);
   const counts = useMemo(() => {
     const c: Record<string, number> = {};
     contents.forEach((x) => {
@@ -156,14 +167,15 @@ export default function Fleet() {
             </div>
           </div>
           <div className="nice-scroll mt-2 max-h-none space-y-0 overflow-visible sm:max-h-96 sm:overflow-y-auto">
-            {bizRuns.length === 0 && <p className="py-3 text-sm text-faint">Quiet so far — file the weekly plan and the wire comes alive.</p>}
-            {bizRuns.map((r) => (
+            {timeline.length === 0 && <p className="py-3 text-sm text-faint">Quiet so far — file the weekly plan and the wire comes alive.</p>}
+            {timeline.map((r) => (
               <div key={r.id} className="flex gap-2.5 border-b border-line py-2.5 last:border-0">
-                <Monogram agent={r.agent} size="sm" />
+                {r.agent ? <Monogram agent={r.agent} size="sm" /> : (
+                  <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-line bg-cream font-mono text-[10px] font-bold text-inksoft">•</span>
+                )}
                 <div>
-                  <p className="text-[13px]"><span className="font-mono text-[11px] font-bold uppercase tracking-wider">{r.agent.replace('_', ' ')}</span> <span className="text-inksoft">— {r.summary}</span></p>
-                  {r.detail && <p className="mt-0.5 text-xs text-faint">{r.detail.slice(0, 220)}</p>}
-                  <p className="mt-0.5 font-mono text-[10px] text-faint">{new Date(r.createdAt).toLocaleString('en-AU')} · {r.mode} · {r.status}</p>
+                  <p className="text-[13px]"><span className="font-mono text-[11px] font-bold uppercase tracking-wider">{r.kind}</span> <span className="text-inksoft">— {r.summary}</span></p>
+                  <p className="mt-0.5 font-mono text-[10px] text-faint">{new Date(r.createdAt).toLocaleString('en-AU')}{r.status ? ` · ${r.status}` : ''}</p>
                 </div>
               </div>
             ))}

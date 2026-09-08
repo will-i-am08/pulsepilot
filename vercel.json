@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/generate-event",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/pulse-tick",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

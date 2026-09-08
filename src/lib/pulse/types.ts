@@ -2,6 +2,18 @@
 // Core domain types. Copilot-first, Autopilot-capable.
 
 export type Channel = 'instagram' | 'tiktok' | 'facebook' | 'linkedin';
+
+/** Extended channel set for scheduling/publishing (R1). Core Channel stays the source of truth for existing flows. */
+export type ExtendedChannel =
+  | Channel
+  | 'x'
+  | 'threads'
+  | 'youtube'
+  | 'pinterest'
+  | 'mastodon'
+  | 'bluesky'
+  | 'pixelfed'
+  | 'google_business';
 export type OperatingMode = 'copilot' | 'autopilot';
 export type ContentState =
   | 'idea'
@@ -106,6 +118,17 @@ export interface ContentItem {
   link?: string;
   visualPrompt?: string;
   altText?: string;
+  /**
+   * Per-channel caption variants. String form is the legacy shape
+   * (see getPlatformVersion in r1.ts); object form is the R1 shape,
+   * e.g. versions['x'] = { caption, hashtags }.
+   */
+  versions?: Partial<Record<string, string | { caption: string; hashtags: string[] }>>;
+  firstComment?: string;
+  threadParts?: string[];
+  mediaIds?: string[];
+  /** Source template id, if created from / saved as a template (R1). */
+  templateId?: string;
   scheduledFor?: string;
   publishedAt?: string;
   publishedUrl?: string;
@@ -158,4 +181,52 @@ export interface TrendItem {
   expiresIn: string;
   suggestedHook: string;
   status: 'new' | 'used' | 'expired';
+}
+
+// ---- R1: media / hashtags / templates / approvals / activity ----
+
+export interface MediaAsset {
+  id: string;
+  businessId: string;
+  name: string;
+  kind: 'image' | 'video';
+  dataUrl?: string;
+  url?: string;
+  usedIn: string[];
+}
+
+export interface HashtagGroup {
+  id: string;
+  businessId: string;
+  name: string;
+  tags: string[];
+}
+
+export interface PostTemplate {
+  id: string;
+  businessId: string;
+  name: string;
+  pillar: string;
+  format: ContentFormat;
+  channel: ExtendedChannel;
+  angle?: string;
+  captionSeed?: string;
+}
+
+export interface ApprovalStep {
+  id: string;
+  contentId: string;
+  by: string;
+  decision: 'approved' | 'rejected' | 'requested';
+  note?: string;
+  createdAt: string;
+}
+
+export interface ActivityEvent {
+  id: string;
+  businessId: string;
+  kind: string;
+  summary: string;
+  contentIds: string[];
+  createdAt: string;
 }

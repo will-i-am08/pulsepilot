@@ -60,3 +60,51 @@ export function str(v: unknown, max: number): string | null {
   if (t.length === 0) return null;
   return t.slice(0, max);
 }
+
+// Supported publishing channels — single source of truth, mirrors neon-schema CHECK.
+export const SUPPORTED_CHANNELS = [
+  'instagram',
+  'tiktok',
+  'facebook',
+  'linkedin',
+  'x',
+  'threads',
+  'youtube',
+  'pinterest',
+  'mastodon',
+  'bluesky',
+  'pixelfed',
+  'google_business',
+] as const;
+
+export type PublishChannel = (typeof SUPPORTED_CHANNELS)[number] | string;
+
+/** Per-channel caption limits. Unknown channels fall back to 2000. */
+export const channelLimits: Record<string, number> = {
+  instagram: 2200,
+  tiktok: 2200,
+  facebook: 63206,
+  linkedin: 3000,
+  x: 280,
+  threads: 500,
+  youtube: 5000,
+  pinterest: 800,
+  mastodon: 500,
+  bluesky: 300,
+  pixelfed: 2200,
+  google_business: 1500,
+};
+
+export function channelLimit(channel: string): number {
+  return channelLimits[channel.toLowerCase()] ?? 2000;
+}
+
+export type CaptionCheck = { channel: string; ok: boolean; overBy: number; limit: number; length: number };
+
+/** Validate a caption against a channel limit. Never throws. */
+export function validateCaption(caption: string, channel: string): CaptionCheck {
+  const ch = channel.toLowerCase();
+  const limit = channelLimit(ch);
+  const length = caption.length;
+  return { channel: ch, ok: length <= limit, overBy: Math.max(0, length - limit), limit, length };
+}

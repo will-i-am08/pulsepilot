@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { usePulse } from '@/lib/pulse/store';
+import { useR1 } from '@/lib/pulse/extras';
+import { ALL_CHANNELS_12, channelName } from '@/lib/pulse/r1';
 import { backupFilename } from '@/lib/pulse/export';
 import type { Channel } from '@/lib/pulse/types';
 
@@ -147,7 +149,8 @@ function CloudBackup() {
 
   const snapshot = () => {
     const s = usePulse.getState();
-    return { version: 2, businesses: s.businesses, activeBusinessId: s.activeBusinessId, contents: s.contents, runs: s.runs, campaigns: s.campaigns, trends: s.trends, usedTrends: s.usedTrends };
+    const r1 = useR1.getState();
+    return { version: 3, businesses: s.businesses, activeBusinessId: s.activeBusinessId, contents: s.contents, runs: s.runs, campaigns: s.campaigns, trends: s.trends, usedTrends: s.usedTrends, media: s.media, hashtagGroups: s.hashtagGroups, templates: [...s.templates, ...r1.templates.map((t) => ({ id: t.id, businessId: t.businessId ?? '', name: t.name, pillar: t.pillar, format: t.format, channel: t.channel, angle: t.hook, createdAt: t.createdAt }))], approvals: s.approvals, activity: [...s.activity, ...r1.activity.map((a) => ({ id: a.id, businessId: a.businessId ?? '', kind: a.kind, summary: a.summary, contentIds: [] as string[], createdAt: a.createdAt }))], r1Media: r1.media, r1Approvals: r1.approvals, whiteLabel: r1.whiteLabel };
   };
 
   const backup = async () => {
@@ -256,6 +259,10 @@ export function SettingsPanel() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const [newPillar, setNewPillar] = useState('');
+  const [connNote, setConnNote] = useState('');
+  const [connBusy, setConnBusy] = useState(false);
+  const whiteLabel = useR1((s) => s.whiteLabel);
+  const setWhiteLabel = useR1((s) => s.setWhiteLabel);
   const resetDemo = usePulse((s) => s.resetDemo);
   if (!biz) return null;
 
@@ -286,6 +293,29 @@ export function SettingsPanel() {
       a.click();
       URL.revokeObjectURL(url);
     } catch { /* ignore */ }
+  };
+
+  const reconnectMock = async (channel: string) => {
+    setConnBusy(true);
+    setConnNote('');
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 12000);
+      const res = await fetch('/api/pulse/publish', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ caption: 'Connection check from Setup.', channels: [channel], dryRun: true }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      const data = (await res.json()) as { results?: { ok: boolean }[] };
+      const ok = data.results?.[0]?.ok ?? false;
+      setConnNote(ok ? `${channel} dry run passed — still mock, connect later.` : `${channel} check failed — try again.`);
+    } catch {
+      setConnNote('Connection check failed — try again.');
+    }
+    setConnBusy(false);
+    setTimeout(() => setConnNote(''), 5000);
   };
 
   return (
@@ -445,6 +475,53 @@ export function SettingsPanel() {
         </label>
         <div className="mt-3">
           <ReminderToggle />
+        </div>
+        <div className="mt-4 border-t border-line pt-3">
+          <p className="kicker">White label — light touch</p>
+          <p className="mt-1 font-mono text-[11px] text-faint">Your logo on client-facing sheets. Saved in this browser.</p>
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <label className="block">
+              <span className="kicker">Workspace display name</span>
+              <input value={whiteLabel.displayName} onChange={(e) => setWhiteLabel({ displayName: e.target.value })} maxLength={60} placeholder="e.g. Pulse Social Media" className="field mt-1 text-sm" aria-label="Workspace display name" />
+            </label>
+            <label className="block">
+              <span className="kicker">Accent colour</span>
+              <input value={whiteLabel.accent} onChange={(e) => setWhiteLabel({ accent: e.target.value })} maxLength={30} placeholder="#c2481b" className="field mt-1 text-sm" aria-label="Accent colour" />
+            </label>
+          </div>
+          <label className="mt-2 block">
+            <span className="kicker">Logo URL</span>
+            <input value={whiteLabel.logoUrl} onChange={(e) => setWhiteLabel({ logoUrl: e.target.value })} maxLength={500} placeholder="https://…" className="field mt-1 text-sm" aria-label="Logo URL" />
+          </label>
+          {(whiteLabel.displayName || whiteLabel.logoUrl) && (
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-line bg-paper p-2.5">
+              {whiteLabel.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={whiteLabel.logoUrl} alt="Workspace logo" className="h-8 w-8 rounded-sm border border-line object-contain" loading="lazy" />
+              )}
+              <span className="font-display text-sm font-bold" style={whiteLabel.accent ? { color: whiteLabel.accent } : undefined}>
+                {whiteLabel.displayName || 'Workspace'}
+              </span>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 border-t border-line pt-3">
+          <p className="kicker">Connections — 12 channels</p>
+          <p className="mt-1 font-mono text-[11px] text-faint">Publishing adapters are mock for now. Dry-run validates copy without posting.</p>
+          <ul className="mt-2 space-y-1.5">
+            {ALL_CHANNELS_12.map((c) => (
+              <li key={c} className="flex items-center gap-2 rounded-md border border-line bg-paper px-2.5 py-1.5">
+                <span className="flex-1 text-[13px] font-semibold capitalize">
+                  {(['instagram', 'tiktok', 'facebook', 'linkedin'] as string[]).includes(c) ? channelName(c as Channel) : c}
+                </span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-faint">Mock — connect later</span>
+                <button onClick={() => reconnectMock(c)} disabled={connBusy} className="btn-ghost min-h-[44px] shrink-0 px-2.5 py-1 font-mono text-[11px] disabled:opacity-50">
+                  Reconnect
+                </button>
+              </li>
+            ))}
+          </ul>
+          {connNote && <p className="mt-1.5 font-mono text-[11px] text-moss" role="status">{connNote}</p>}
         </div>
         <div className="mt-4 border-t border-line pt-3">
           <p className="kicker">This workspace</p>

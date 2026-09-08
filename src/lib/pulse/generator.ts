@@ -2,7 +2,7 @@
 // Works fully offline (deterministic templates + brand voice).
 // API routes can upgrade it with a real LLM when ANTHROPIC_API_KEY is set.
 
-import type { BusinessProfile, CarouselSlide, Channel, ContentFormat, ContentItem, ContentMetrics, LiveSegment, NewsletterData, PollData, StoryFrame } from './types';
+import type { BusinessProfile, CarouselSlide, Channel, ContentFormat, ContentItem, ContentMetrics, ExtendedChannel, LiveSegment, NewsletterData, PollData, StoryFrame } from './types';
 
 function hash(s: string): number {
   let h = 2166136261;
@@ -63,7 +63,7 @@ function emojiFor(level: 0 | 1 | 2, seed: number): string {
   return ' ' + pick(bank, seed);
 }
 
-export function channelBestNote(channel: Channel): string {
+export function channelBestNote(channel: ExtendedChannel): string {
   switch (channel) {
     case 'instagram':
       return 'Promise in the first 6 words. Short paragraphs. Hashtags ride along at the end.';
@@ -73,7 +73,108 @@ export function channelBestNote(channel: Channel): string {
       return 'Warm and conversational. End with one genuine question to earn comments.';
     case 'linkedin':
       return 'Lead with the insight, no clickbait. Short paragraphs. One soft next step.';
+    case 'x':
+      return 'One idea per post. Hook first, 280 characters max. Thread it if it runs long.';
+    case 'threads':
+      return 'Conversational opener, 500 characters max. One question to earn replies.';
+    case 'youtube':
+      return 'Title carries the click; description carries the detail. Keywords in the first 2 lines.';
+    case 'pinterest':
+      return 'Searchable title + keyword-rich description. Vertical visual, text overlay under 5 words.';
+    case 'mastodon':
+      return 'Plain text, 500 characters max. Content warnings where apt, hashtags inline (2–3).';
+    case 'bluesky':
+      return 'Short and human, 300 characters max. One link max, no hashtag stuffing.';
+    case 'pixelfed':
+      return 'Photo-first like IG. Alt text always, hashtags at the end.';
+    case 'google_business':
+      return 'Short update post: what, where, when. One photo, one call button.';
+    default:
+      return 'One clear promise, one proof line, one next step.';
   }
+}
+
+// ---- R1 helpers ----
+
+/** Split long copy into thread parts of at most maxLen chars, preferring sentence/word boundaries. */
+export function splitThread(text: string, maxLen = 280): string[] {
+  const clean = (text ?? '').trim();
+  if (!clean) return [];
+  const limit = Math.max(20, Math.floor(maxLen));
+  // Split into sentence-ish chunks first, then pack greedily and hard-split overflow words.
+  const sentences = clean.split(/(?<=[.!?…])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
+  const words = sentences.length > 0 ? sentences : [clean];
+  const parts: string[] = [];
+  let cur = '';
+  const pushCur = () => {
+    if (cur.trim()) parts.push(cur.trim());
+    cur = '';
+  };
+  for (const chunk of words) {
+    const piece = chunk.length <= limit ? chunk : chunk.split(/\s+/).filter(Boolean).reduce<string[]>((acc, w) => {
+      if (w.length > limit) {
+        // Hard-split very long tokens.
+        for (let i = 0; i < w.length; i += limit) acc.push(w.slice(i, i + limit));
+      } else if (acc.length === 0) acc.push(w);
+      else {
+        const last = acc[acc.length - 1];
+        if ((last + ' ' + w).length <= limit) acc[acc.length - 1] = last + ' ' + w;
+        else acc.push(w);
+      }
+      return acc;
+    }, []).join('\n');
+    for (const sub of piece.split('\n')) {
+      const candidate = cur ? cur + ' ' + sub : sub;
+      if (candidate.length <= limit) {
+        cur = candidate;
+      } else {
+        if (sub.length <= limit) {
+          pushCur();
+          cur = sub;
+        } else {
+          // sub itself overflows (hard-split tokens joined) — flush and slice.
+          pushCur();
+          for (let i = 0; i < sub.length; i += limit) parts.push(sub.slice(i, i + limit));
+        }
+      }
+    }
+  }
+  pushCur();
+  return parts;
+}
+
+const CAPTION_LIMITS: Record<ExtendedChannel, number> = {
+  instagram: 2200,
+  tiktok: 2200,
+  facebook: 63206,
+  linkedin: 3000,
+  x: 280,
+  threads: 500,
+  youtube: 5000,
+  pinterest: 800,
+  mastodon: 500,
+  bluesky: 300,
+  pixelfed: 2000,
+  google_business: 1500,
+};
+
+/** Validate caption length for a channel. Never returns undefined; unknown channels fall back to 2200. */
+export function validateCaptionLength(
+  channel: ExtendedChannel,
+  text: string
+): { ok: boolean; overBy: number } {
+  const limit = CAPTION_LIMITS[channel] ?? 2200;
+  const len = (text ?? '').length;
+  return len <= limit ? { ok: true, overBy: 0 } : { ok: false, overBy: len - limit };
+}
+
+/** Build an IG-style first comment from caption + hashtags, capped at 1500 chars. */
+export function buildFirstComment(caption: string, hashtags: string[]): string {
+  const tags = (hashtags ?? []).filter((h) => typeof h === 'string' && h.trim()).join(' ');
+  const base = caption?.trim()
+    ? tags ? `${caption.trim()}\n\n${tags}` : caption.trim()
+    : tags;
+  return base.slice(0, 1500);
 }
 
 export interface DraftInput {

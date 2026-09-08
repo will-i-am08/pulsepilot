@@ -128,6 +128,11 @@ export function postTXT(item: ContentItem): string {
     parts.push('', item.newsletter.cta);
   }
   if (item.script) parts.push('', '— SCRIPT —', item.script);
+  if (item.firstComment) parts.push('', '— FIRST COMMENT —', item.firstComment);
+  if (item.threadParts && item.threadParts.length > 0) {
+    parts.push('', '— THREAD —');
+    item.threadParts.forEach((t, i) => parts.push(`${i + 1}/${item.threadParts?.length} ${t}`));
+  }
   if (item.collabWith) parts.push('', `Collaborators: ${item.collabWith}`);
   if (item.isTrialReel) parts.push('', 'Trial reel: test to non-followers first.');
   return parts.join('\n');

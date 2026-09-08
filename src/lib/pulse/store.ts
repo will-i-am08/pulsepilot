@@ -2,8 +2,10 @@
 
 import { create } from 'zustand';
 import type {
+  ActivityEvent,
   AgentId,
   AgentRun,
+  ApprovalStep,
   BusinessProfile,
   Campaign,
   CarouselSlide,
@@ -12,15 +14,18 @@ import type {
   ContentItem,
   ContentMetrics,
   ContentState,
+  HashtagGroup,
   LiveSegment,
+  MediaAsset,
   NewsletterData,
   OperatingMode,
   PollData,
+  PostTemplate,
   StoryFrame,
   TrendItem,
 } from './types';
 import { generateDraft, scoreFromMetrics, simulateMetrics, weeklyPlan } from './generator';
-import { nextSlot } from './slots';
+import { nextSlot, nextSlotFor } from './slots';
 
 const LS_KEY = 'pulsepilot-v2';
 const LS_LEGACY = 'pulsepilot-v1';
@@ -101,6 +106,35 @@ function sanitizeContent(c: unknown): ContentItem | null {
   const channel: Channel = (CHANNELS as string[]).includes(o.channel as string) ? (o.channel as Channel) : 'instagram';
   const format: ContentFormat = (FORMATS as string[]).includes(o.format as string) ? (o.format as ContentFormat) : 'text';
   const states: ContentState[] = ['idea', 'draft', 'pending_approval', 'scheduled', 'published', 'analysed', 'rejected'];
+  // R1 optional fields (capped, backwards-compatible).
+  const mediaIds = Array.isArray(o.mediaIds)
+    ? (o.mediaIds as unknown[]).filter((m): m is string => typeof m === 'string' && m.length > 0).map((m) => m.slice(0, 60)).slice(0, 4)
+    : undefined;
+  const templateId = typeof o.templateId === 'string' && o.templateId.length > 0 ? o.templateId.slice(0, 60) : undefined;
+  const firstComment = typeof o.firstComment === 'string' && o.firstComment.length > 0 ? o.firstComment.slice(0, 1500) : undefined;
+  let versions: ContentItem['versions'];
+  if (o.versions && typeof o.versions === 'object' && !Array.isArray(o.versions)) {
+    const entries = Object.entries(o.versions as Record<string, unknown>).slice(0, 12);
+    const clean: NonNullable<ContentItem['versions']> = {};
+    for (const [k, v] of entries) {
+      if (typeof v === 'string' && v.length > 0) {
+        // Legacy string form (see getPlatformVersion in r1.ts) — preserved as-is.
+        clean[k.slice(0, 40)] = v.slice(0, 1500);
+        continue;
+      }
+      if (!v || typeof v !== 'object') continue;
+      const vv = v as Record<string, unknown>;
+      if (typeof vv.caption !== 'string' || !Array.isArray(vv.hashtags)) continue;
+      clean[k.slice(0, 40)] = {
+        caption: vv.caption.slice(0, 1500),
+        hashtags: (vv.hashtags as unknown[]).filter((h): h is string => typeof h === 'string').map((h) => h.slice(0, 40)).slice(0, 12),
+      };
+    }
+    if (Object.keys(clean).length > 0) versions = clean;
+  }
+  const threadParts = Array.isArray(o.threadParts)
+    ? (o.threadParts as unknown[]).filter((t): t is string => typeof t === 'string' && t.length > 0).map((t) => t.slice(0, 500)).slice(0, 20)
+    : undefined;
   return {
     id: o.id,
     businessId: o.businessId,
@@ -135,11 +169,15 @@ function sanitizeContent(c: unknown): ContentItem | null {
     agentNote: cleanStr(o.agentNote, 300),
     createdAt: typeof o.createdAt === 'string' ? o.createdAt : nowISO(),
     updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : nowISO(),
+    ...(mediaIds !== undefined ? { mediaIds } : {}),
+    ...(templateId !== undefined ? { templateId } : {}),
+    ...(firstComment !== undefined ? { firstComment } : {}),
+    ...(versions !== undefined ? { versions } : {}),
+    ...(threadParts !== undefined ? { threadParts } : {}),
   };
 }
 
-function sanitizeRun(r: unknown): AgentRun | null {
-  if (!r || typeof r !== 'object') return null;
+function sanitizeRun(r: unknown): AgentRun | null {  if (!r || typeof r !== 'object') return null;
   const o = r as Record<string, unknown>;
   const agents: AgentId[] = ['strategist', 'trend_scout', 'copywriter', 'visual_director', 'scheduler', 'analyst'];
   if (typeof o.id !== 'string' || !agents.includes(o.agent as AgentId) || typeof o.summary !== 'string') return null;
@@ -172,6 +210,86 @@ const TREND_BANK: Omit<TrendItem, 'id' | 'status'>[] = [
   { title: 'Checklist carousels that get saved', platform: 'LinkedIn + IG', relevance: 0.86, expiresIn: '13 days', suggestedHook: 'The 6-point checklist we run before anything goes out' },
 ];
 
+// ---- R1 slice sanitizers (caps enforced, v2 payloads without these default to []) ----
+
+function sanitizeMedia(m: unknown): MediaAsset | null {
+  if (!m || typeof m !== 'object') return null;
+  const o = m as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.businessId !== 'string') return null;
+  if (o.kind !== 'image' && o.kind !== 'video') return null;
+  return {
+    id: o.id.slice(0, 60),
+    businessId: o.businessId.slice(0, 60),
+    name: cleanStr(o.name, 80, 'Untitled media'),
+    kind: o.kind,
+    dataUrl: typeof o.dataUrl === 'string' ? o.dataUrl.slice(0, 2_000_000) : undefined,
+    url: typeof o.url === 'string' ? o.url.slice(0, 500) : undefined,
+    usedIn: Array.isArray(o.usedIn) ? (o.usedIn as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 100) : [],
+  };
+}
+
+function sanitizeHashtagGroup(g: unknown): HashtagGroup | null {
+  if (!g || typeof g !== 'object') return null;
+  const o = g as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.businessId !== 'string' || typeof o.name !== 'string') return null;
+  if (!Array.isArray(o.tags)) return null;
+  return {
+    id: o.id.slice(0, 60),
+    businessId: o.businessId.slice(0, 60),
+    name: o.name.slice(0, 60),
+    tags: (o.tags as unknown[]).filter((t): t is string => typeof t === 'string' && t.trim().length > 0).map((t) => t.slice(0, 40)).slice(0, 30),
+  };
+}
+
+const EXTENDED_CHANNELS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'x', 'threads', 'youtube', 'pinterest', 'mastodon', 'bluesky', 'pixelfed', 'google_business'];
+
+function sanitizeTemplate(t: unknown): PostTemplate | null {
+  if (!t || typeof t !== 'object') return null;
+  const o = t as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.businessId !== 'string' || typeof o.name !== 'string') return null;
+  const format: ContentFormat = (FORMATS as string[]).includes(o.format as string) ? (o.format as ContentFormat) : 'text';
+  const channel = EXTENDED_CHANNELS.includes(o.channel as string) ? (o.channel as PostTemplate['channel']) : 'instagram';
+  return {
+    id: o.id.slice(0, 60),
+    businessId: o.businessId.slice(0, 60),
+    name: o.name.slice(0, 80),
+    pillar: cleanStr(o.pillar, 40, 'Offers'),
+    format,
+    channel,
+    angle: typeof o.angle === 'string' ? o.angle.slice(0, 120) : undefined,
+    captionSeed: typeof o.captionSeed === 'string' ? o.captionSeed.slice(0, 1500) : undefined,
+  };
+}
+
+function sanitizeApproval(a: unknown): ApprovalStep | null {
+  if (!a || typeof a !== 'object') return null;
+  const o = a as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.contentId !== 'string') return null;
+  if (o.decision !== 'approved' && o.decision !== 'rejected' && o.decision !== 'requested') return null;
+  return {
+    id: o.id.slice(0, 60),
+    contentId: o.contentId.slice(0, 60),
+    by: cleanStr(o.by, 80, 'owner'),
+    decision: o.decision,
+    note: typeof o.note === 'string' ? o.note.slice(0, 500) : undefined,
+    createdAt: typeof o.createdAt === 'string' ? o.createdAt : nowISO(),
+  };
+}
+
+function sanitizeActivity(e: unknown): ActivityEvent | null {
+  if (!e || typeof e !== 'object') return null;
+  const o = e as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.businessId !== 'string' || typeof o.summary !== 'string') return null;
+  return {
+    id: o.id.slice(0, 60),
+    businessId: o.businessId.slice(0, 60),
+    kind: cleanStr(o.kind, 40, 'note'),
+    summary: o.summary.slice(0, 500),
+    contentIds: Array.isArray(o.contentIds) ? (o.contentIds as unknown[]).filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 30) : [],
+    createdAt: typeof o.createdAt === 'string' ? o.createdAt : nowISO(),
+  };
+}
+
 interface Persisted {
   version: number;
   businesses: BusinessProfile[];
@@ -181,6 +299,11 @@ interface Persisted {
   campaigns: Campaign[];
   trends: TrendItem[];
   usedTrends: Record<string, string[]>;
+  media: MediaAsset[];
+  hashtagGroups: HashtagGroup[];
+  templates: PostTemplate[];
+  approvals: ApprovalStep[];
+  activity: ActivityEvent[];
 }
 
 function readKey(key: string): unknown {
@@ -208,11 +331,17 @@ function toPersisted(v: unknown): Persisted {
   const usedTrends = o.usedTrends && typeof o.usedTrends === 'object' ? (o.usedTrends as Record<string, string[]>) : {};
   let activeBusinessId = typeof o.activeBusinessId === 'string' ? o.activeBusinessId : null;
   if (activeBusinessId && !businesses.some((b) => b.id === activeBusinessId)) activeBusinessId = businesses[0]?.id ?? null;
-  return { version: 2, businesses, activeBusinessId, contents: contents.slice(-300), runs: runs.slice(-120), campaigns: campaigns.slice(-30), trends, usedTrends };
+  // v2 payloads carry no R1 slices — default to empty (forward migration v2 -> v3).
+  const media = Array.isArray(o.media) ? (o.media as unknown[]).map(sanitizeMedia).filter((m): m is MediaAsset => m !== null).slice(-200) : [];
+  const hashtagGroups = Array.isArray(o.hashtagGroups) ? (o.hashtagGroups as unknown[]).map(sanitizeHashtagGroup).filter((g): g is HashtagGroup => g !== null).slice(-100) : [];
+  const templates = Array.isArray(o.templates) ? (o.templates as unknown[]).map(sanitizeTemplate).filter((t): t is PostTemplate => t !== null).slice(-100) : [];
+  const approvals = Array.isArray(o.approvals) ? (o.approvals as unknown[]).map(sanitizeApproval).filter((a): a is ApprovalStep => a !== null).slice(-300) : [];
+  const activity = Array.isArray(o.activity) ? (o.activity as unknown[]).map(sanitizeActivity).filter((e): e is ActivityEvent => e !== null).slice(-300) : [];
+  return { version: 3, businesses, activeBusinessId, contents: contents.slice(-300), runs: runs.slice(-120), campaigns: campaigns.slice(-30), trends, usedTrends, media, hashtagGroups, templates, approvals, activity };
 }
 
 function load(): Persisted {
-  const empty: Persisted = { version: 2, businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {} };
+  const empty: Persisted = { version: 3, businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {}, media: [], hashtagGroups: [], templates: [], approvals: [], activity: [] };
   const v2 = readKey(LS_KEY);
   if (v2) return { ...empty, ...toPersisted(v2) };
   const v1 = readKey(LS_LEGACY);
@@ -245,7 +374,7 @@ if (typeof window !== 'undefined') {
 
 function snapshot(s: PulseState): Persisted {
   return {
-    version: 2,
+    version: 3,
     businesses: s.businesses,
     activeBusinessId: s.activeBusinessId,
     contents: s.contents.slice(-300),
@@ -253,6 +382,11 @@ function snapshot(s: PulseState): Persisted {
     campaigns: s.campaigns.slice(-30),
     trends: s.trends,
     usedTrends: s.usedTrends,
+    media: s.media.slice(-200),
+    hashtagGroups: s.hashtagGroups.slice(-100),
+    templates: s.templates.slice(-100),
+    approvals: s.approvals.slice(-300),
+    activity: s.activity.slice(-300),
   };
 }
 
@@ -274,6 +408,11 @@ interface PulseState {
   campaigns: Campaign[];
   trends: TrendItem[];
   usedTrends: Record<string, string[]>;
+  media: MediaAsset[];
+  hashtagGroups: HashtagGroup[];
+  templates: PostTemplate[];
+  approvals: ApprovalStep[];
+  activity: ActivityEvent[];
   autopilotBusy: boolean;
   focusContentId: string | null;
   lastPlanAt: Record<string, number>;
@@ -293,8 +432,21 @@ interface PulseState {
   selectCaption: (contentId: string, idx: number) => void;
   schedule: (contentId: string, iso?: string) => boolean;
   publish: (contentId: string) => boolean;
+  publishRemote: (contentId: string) => Promise<boolean>;
   analyse: (contentId: string) => void;
   destroyContent: (contentId: string) => void;
+
+  // ---- R1 slices ----
+  addMedia: (m: Omit<MediaAsset, 'id' | 'usedIn'>) => string;
+  removeMedia: (id: string) => void;
+  createHashtagGroup: (g: Omit<HashtagGroup, 'id'>) => string;
+  applyHashtagGroup: (contentId: string, groupId: string) => boolean;
+  saveAsTemplate: (contentId: string, name?: string) => string | null;
+  applyTemplate: (templateId: string, businessId?: string) => string | null;
+  requestApproval: (contentId: string, by?: string, note?: string) => boolean;
+  approve: (contentId: string, by?: string, note?: string) => boolean;
+  reject: (contentId: string, by?: string, note?: string) => boolean;
+  logActivity: (kind: string, summary: string, contentIds?: string[], businessId?: string) => void;
 
   autopilotTick: (businessId: string) => void;
   logRun: (r: Omit<AgentRun, 'id' | 'createdAt'>) => void;
@@ -307,7 +459,7 @@ interface PulseState {
 }
 
 export const usePulse = create<PulseState>((set, get) => {
-  const saved = typeof window !== 'undefined' ? load() : { version: 2, businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {} } as Persisted;
+  const saved = typeof window !== 'undefined' ? load() : { version: 3, businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {}, media: [], hashtagGroups: [], templates: [], approvals: [], activity: [] } as Persisted;
 
   const commit = (partial: Partial<PulseState>) => {
     set(partial);
@@ -322,6 +474,11 @@ export const usePulse = create<PulseState>((set, get) => {
     campaigns: saved.campaigns,
     trends: saved.trends,
     usedTrends: saved.usedTrends,
+    media: saved.media ?? [],
+    hashtagGroups: saved.hashtagGroups ?? [],
+    templates: saved.templates ?? [],
+    approvals: saved.approvals ?? [],
+    activity: saved.activity ?? [],
     autopilotBusy: false,
     focusContentId: null,
     lastPlanAt: {},
@@ -400,11 +557,17 @@ export const usePulse = create<PulseState>((set, get) => {
     deleteBusiness: (id) => {
       const s = get();
       const businesses = s.businesses.filter((b) => b.id !== id);
+      const remainingContentIds = new Set(s.contents.filter((c) => c.businessId !== id).map((c) => c.id));
       commit({
         businesses,
         contents: s.contents.filter((c) => c.businessId !== id),
         campaigns: s.campaigns.filter((c) => c.businessId !== id),
         runs: s.runs.filter((r) => r.businessId !== id),
+        media: s.media.filter((m) => m.businessId !== id),
+        hashtagGroups: s.hashtagGroups.filter((g) => g.businessId !== id),
+        templates: s.templates.filter((t) => t.businessId !== id),
+        approvals: s.approvals.filter((a) => remainingContentIds.has(a.contentId)),
+        activity: s.activity.filter((e) => e.businessId !== id),
         activeBusinessId: s.activeBusinessId === id ? (businesses[0]?.id ?? null) : s.activeBusinessId,
       });
     },
@@ -602,6 +765,44 @@ export const usePulse = create<PulseState>((set, get) => {
       return true;
     },
 
+    publishRemote: async (contentId) => {
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!item) return false;
+      try {
+        if (typeof fetch === 'undefined' || (typeof navigator !== 'undefined' && navigator.onLine === false)) {
+          return get().publish(contentId);
+        }
+        const caption = item.captions[item.selectedCaption] ?? item.captions[0] ?? item.hook;
+        const res = await fetch('/api/pulse/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contentId, businessId: item.businessId, channel: item.channel, caption }),
+        });
+        if (!res.ok) return get().publish(contentId);
+        let url: string | undefined;
+        try {
+          const data = (await res.json()) as Record<string, unknown>;
+          // The route is mock until adapters connect (returns ok:false) — fall back to local sim.
+          if (data?.ok === false) return get().publish(contentId);
+          if (typeof data?.url === 'string') url = data.url;
+          else if (typeof data?.publishedUrl === 'string') url = data.publishedUrl;
+        } catch { /* non-JSON body — still treat as success */ }
+        const code = `${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`;
+        commit({
+          contents: get().contents.map((c) =>
+            c.id === contentId
+              ? { ...c, state: 'published' as ContentState, publishedAt: nowISO(), publishedUrl: url ?? `https://${c.channel}.com/p/${code}`, updatedAt: nowISO() }
+              : c
+          ),
+        });
+        get().logActivity('publish', `Published remotely via /api/pulse/publish`, [contentId], item.businessId);
+        return true;
+      } catch {
+        // Offline or network failure — fall back to the local simulation.
+        return get().publish(contentId);
+      }
+    },
+
     analyse: (contentId) => {
       const item = get().contents.find((c) => c.id === contentId);
       if (!item || (item.state !== 'published' && item.state !== 'analysed')) return;
@@ -626,6 +827,162 @@ export const usePulse = create<PulseState>((set, get) => {
 
     destroyContent: (contentId) => {
       commit({ contents: get().contents.filter((c) => c.id !== contentId) });
+    },
+
+    // ---- R1: media / hashtags / templates / approvals-lite / activity ----
+
+    addMedia: (m) => {
+      const id = uid('media');
+      const asset: MediaAsset = {
+        id,
+        businessId: m.businessId.slice(0, 60),
+        name: m.name.slice(0, 80) || 'Untitled media',
+        kind: m.kind,
+        dataUrl: typeof m.dataUrl === 'string' ? m.dataUrl.slice(0, 2_000_000) : undefined,
+        url: typeof m.url === 'string' ? m.url.slice(0, 500) : undefined,
+        usedIn: [],
+      };
+      commit({ media: [...get().media, asset].slice(-200) });
+      return id;
+    },
+
+    removeMedia: (id) => {
+      const s = get();
+      commit({
+        media: s.media.filter((m) => m.id !== id),
+        contents: s.contents.map((c) =>
+          c.mediaIds?.includes(id) ? { ...c, mediaIds: c.mediaIds.filter((x) => x !== id), updatedAt: nowISO() } : c
+        ),
+      });
+    },
+
+    createHashtagGroup: (g) => {
+      const id = uid('htag');
+      const group: HashtagGroup = {
+        id,
+        businessId: g.businessId.slice(0, 60),
+        name: g.name.slice(0, 60) || 'Untitled group',
+        tags: g.tags.filter((t) => typeof t === 'string' && t.trim().length > 0).map((t) => t.slice(0, 40)).slice(0, 30),
+      };
+      commit({ hashtagGroups: [...get().hashtagGroups, group].slice(-100) });
+      return id;
+    },
+
+    applyHashtagGroup: (contentId, groupId) => {
+      const group = get().hashtagGroups.find((g) => g.id === groupId);
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!group || !item) return false;
+      commit({
+        contents: get().contents.map((c) =>
+          c.id === contentId ? { ...c, hashtags: [...group.tags].slice(0, 12), updatedAt: nowISO() } : c
+        ),
+      });
+      return true;
+    },
+
+    saveAsTemplate: (contentId, name) => {
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!item) return null;
+      const id = uid('tmpl');
+      const tpl: PostTemplate = {
+        id,
+        businessId: item.businessId,
+        name: (name ?? `${item.pillar} · ${item.format} · ${item.channel}`).slice(0, 80),
+        pillar: item.pillar.slice(0, 40),
+        format: item.format,
+        channel: item.channel,
+        captionSeed: item.captions[item.selectedCaption]?.slice(0, 1500),
+      };
+      commit({ templates: [...get().templates, tpl].slice(-100) });
+      get().logActivity('template_saved', `Saved “${tpl.name}” as a template`, [contentId], item.businessId);
+      return id;
+    },
+
+    applyTemplate: (templateId, businessId) => {
+      const tpl = get().templates.find((t) => t.id === templateId);
+      if (!tpl) return null;
+      const bizId = businessId ?? tpl.businessId;
+      const business = get().businesses.find((b) => b.id === bizId);
+      if (!business) return null;
+      // ContentItem.channel is core-only; extended template channels fall back to instagram.
+      const channel: Channel = (CHANNELS as string[]).includes(tpl.channel) ? (tpl.channel as Channel) : 'instagram';
+      const draft = generateDraft(
+        { business, pillar: tpl.pillar, format: tpl.format, channel, angle: tpl.angle },
+        get().contents.length
+      );
+      const id = uid('post');
+      const item: ContentItem = {
+        ...draft,
+        id,
+        businessId: bizId,
+        templateId: tpl.id,
+        state: 'draft',
+        captions: tpl.captionSeed ? [tpl.captionSeed, ...draft.captions].slice(0, 5) : draft.captions,
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+      };
+      commit({ contents: [...get().contents, item].slice(-300) });
+      get().logActivity('template_applied', `Applied template “${tpl.name}”`, [id], bizId);
+      return id;
+    },
+
+    requestApproval: (contentId, by = 'owner', note) => {
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!item) return false;
+      const step: ApprovalStep = { id: uid('appr'), contentId, by: by.slice(0, 80), decision: 'requested', note: note?.slice(0, 500), createdAt: nowISO() };
+      const canMove = (['draft', 'idea'] as ContentState[]).includes(item.state);
+      commit({
+        approvals: [...get().approvals, step].slice(-300),
+        contents: get().contents.map((c) =>
+          c.id === contentId ? { ...c, state: (canMove ? 'pending_approval' : c.state) as ContentState, updatedAt: nowISO() } : c
+        ),
+      });
+      get().logActivity('approval_requested', `Approval requested by ${step.by}${note ? ` — ${note}` : ''}`, [contentId], item.businessId);
+      return true;
+    },
+
+    approve: (contentId, by = 'owner', note) => {
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!item) return false;
+      const step: ApprovalStep = { id: uid('appr'), contentId, by: by.slice(0, 80), decision: 'approved', note: note?.slice(0, 500), createdAt: nowISO() };
+      const slot = item.scheduledFor ?? nextSlotFor(item.channel, 1);
+      commit({
+        approvals: [...get().approvals, step].slice(-300),
+        contents: get().contents.map((c) =>
+          c.id === contentId ? { ...c, state: 'scheduled' as ContentState, scheduledFor: slot, updatedAt: nowISO() } : c
+        ),
+      });
+      get().logActivity('approved', `Approved by ${step.by}`, [contentId], item.businessId);
+      return true;
+    },
+
+    reject: (contentId, by = 'owner', note) => {
+      const item = get().contents.find((c) => c.id === contentId);
+      if (!item) return false;
+      const step: ApprovalStep = { id: uid('appr'), contentId, by: by.slice(0, 80), decision: 'rejected', note: note?.slice(0, 500), createdAt: nowISO() };
+      commit({
+        approvals: [...get().approvals, step].slice(-300),
+        contents: get().contents.map((c) =>
+          c.id === contentId ? { ...c, state: 'rejected' as ContentState, updatedAt: nowISO() } : c
+        ),
+      });
+      get().logActivity('rejected', `Rejected by ${step.by}${note ? ` — ${note}` : ''}`, [contentId], item.businessId);
+      return true;
+    },
+
+    logActivity: (kind, summary, contentIds = [], businessId) => {
+      const s = get();
+      const bizId = businessId ?? s.activeBusinessId;
+      if (!bizId) return;
+      const evt: ActivityEvent = {
+        id: uid('act'),
+        businessId: bizId,
+        kind: kind.slice(0, 40) || 'note',
+        summary: summary.slice(0, 500),
+        contentIds: contentIds.filter((x) => typeof x === 'string').map((x) => x.slice(0, 60)).slice(0, 30),
+        createdAt: nowISO(),
+      };
+      commit({ activity: [...s.activity, evt].slice(-300) });
     },
 
     autopilotTick: (businessId) => {
@@ -760,6 +1117,11 @@ export const usePulse = create<PulseState>((set, get) => {
           campaigns: clean.campaigns,
           trends: clean.trends,
           usedTrends: clean.usedTrends,
+          media: clean.media,
+          hashtagGroups: clean.hashtagGroups,
+          templates: clean.templates,
+          approvals: clean.approvals,
+          activity: clean.activity,
         });
         return true;
       } catch {
@@ -772,7 +1134,7 @@ export const usePulse = create<PulseState>((set, get) => {
         window.localStorage.removeItem(LS_KEY);
         window.localStorage.removeItem(LS_LEGACY);
       } catch { /* noop */ }
-      set({ businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {}, focusContentId: null, lastPlanAt: {} });
+      set({ businesses: [], activeBusinessId: null, contents: [], runs: [], campaigns: [], trends: DEFAULT_TRENDS, usedTrends: {}, media: [], hashtagGroups: [], templates: [], approvals: [], activity: [], focusContentId: null, lastPlanAt: {} });
     },
   };
 });

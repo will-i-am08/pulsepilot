@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from 'react';
 import { usePulse } from '@/lib/pulse/store';
-import { weekReport } from '@/lib/pulse/export';
+import { download, queueCSV, weekReport } from '@/lib/pulse/export';
+import { bestTimeList } from '@/lib/pulse/r1';
+import { slotLabel } from '@/lib/pulse/slots';
 
 export default function AnalyticsView() {
   const businesses = usePulse((s) => s.businesses);
@@ -70,6 +72,19 @@ export default function AnalyticsView() {
     setTimeout(() => setReportNote(''), 4000);
   };
 
+  const downloadCSV = () => {
+    const all = contents.filter((c) => c.businessId === biz?.id);
+    download(`${biz.businessName.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}-week.csv`, queueCSV(all), 'text/csv');
+    setReportNote('CSV downloaded — open it in Sheets or Excel.');
+    setTimeout(() => setReportNote(''), 4000);
+  };
+
+  const printReport = () => {
+    try {
+      window.print();
+    } catch { /* ignore */ }
+  };
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <div className="pp-card p-4 lg:col-span-2">
@@ -133,6 +148,24 @@ export default function AnalyticsView() {
               </div>
             ))}
           </div>
+        </div>
+        <div className="pp-card p-4">
+          <p className="kicker">Email / PDF report</p>
+          <h3 className="font-display text-base font-bold">Send the week anywhere</h3>
+          <p className="mt-1 text-xs text-faint">No ingestion, no dashboards to learn — copy it, download it, or print it to PDF.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button onClick={copyReport} className="btn-ghost min-h-[44px] px-4 py-2 text-sm">Copy week report</button>
+            <button onClick={downloadCSV} className="btn-ghost min-h-[44px] px-4 py-2 text-sm">Download CSV</button>
+            <button onClick={printReport} className="btn-ghost min-h-[44px] px-4 py-2 text-sm">Print / PDF</button>
+          </div>
+          {reportNote && <p className="mt-1.5 font-mono text-xs text-moss" role="status">{reportNote}</p>}
+          <h4 className="kicker mt-4">Best times to post (AEST)</h4>
+          <ul className="mt-1.5 space-y-1">
+            {bestTimeList().map((b) => (
+              <li key={b.channel} className="font-mono text-[11px] text-inksoft">— {b.label}</li>
+            ))}
+          </ul>
+          <p className="mt-1.5 font-mono text-[11px] leading-relaxed text-faint">House slots — {slotLabel()}.</p>
         </div>
       </div>
     </div>
