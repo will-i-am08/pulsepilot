@@ -192,7 +192,7 @@ create policy "owner rows" on pulse_runs for all
   with check (business_id is null or exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
 create policy "owner rows" on pulse_trends for all
   using (owner_id is null or owner_id = current_setting('app.user_id', true))
-  with check (owner_id is null or owner_id = current_setting('app.user_id', true)));
+  with check (owner_id is null or owner_id = current_setting('app.user_id', true));
 
 -- ---------- game tables (STEALTH MODE legacy, ported from supabase-schema.sql) ----------
 create table if not exists companies (
@@ -267,3 +267,174 @@ create table if not exists world_events (
   type text,
   created_at timestamptz default now()
 );
+
+-- ---------- R1 data layer (appended; existing tables untouched) ----------
+-- Channel publishing connections. Tokens are BYTEA only — encrypt with
+-- pgp_sym_encrypt(token, current_setting('app.token_key')) using the
+-- TOKEN_ENCRYPTION_KEY env var; never store plaintext tokens.
+create table if not exists pulse_connections (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  channel text not null
+    check (channel in ('instagram','tiktok','facebook','linkedin','x','threads','youtube','pinterest','mastodon','bluesky','pixelfed','google_business')),
+  access_token_enc bytea,
+  refresh_token_enc bytea,
+  expires_at timestamptz,
+  external_id text,
+  scopes text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  unique (business_id, channel)
+);
+
+create table if not exists media_assets (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  name text not null default '',
+  kind text not null default 'image' check (kind in ('image','video')),
+  url text,
+  used_in uuid[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists hashtag_groups (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  name text not null default '',
+  tags text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists post_templates (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  name text not null default '',
+  pillar text not null default '',
+  format text not null default 'text',
+  channel text not null default 'instagram'
+    check (channel in ('instagram','tiktok','facebook','linkedin','x','threads','youtube','pinterest','mastodon','bluesky','pixelfed','google_business')),
+  angle text,
+  caption_seed text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists approval_steps (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  content_id uuid references pulse_content(id) on delete cascade,
+  by_user text not null default '',
+  decision text not null default 'requested' check (decision in ('approved','rejected','requested')),
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists activity_log (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  kind text not null default '',
+  summary text not null default '',
+  content_ids uuid[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+-- Minimal stub for future inbox work. No API yet.
+create table if not exists inbox_messages (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  channel text not null default '' check (channel in ('','instagram','tiktok','facebook','linkedin','x','threads','youtube','pinterest','mastodon','bluesky','pixelfed','google_business')),
+  body text not null default '',
+  handled boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists api_keys (
+  id uuid primary key default gen_random_uuid(),
+  key_hash text unique not null,
+  prefix text not null default '',
+  owner_id text,
+  created_at timestamptz not null default now()
+);
+
+-- Stub for future outbound webhooks. No sender yet.
+create table if not exists webhook_endpoints (
+  id uuid primary key default gen_random_uuid(),
+  local_id text unique,
+  business_id uuid references pulse_businesses(id) on delete cascade,
+  url text not null default '',
+  events text[] not null default '{}',
+  created_at timestamptz not null default now()
+);
+
+-- Server-side rate-limit buckets for future API routes.
+create table if not exists pulse_rate_limits (
+  key text primary key,
+  count int not null default 0,
+  reset_at timestamptz not null default now()
+);
+
+create index if not exists idx_pconn_biz on pulse_connections (business_id);
+create index if not exists idx_media_biz on media_assets (business_id);
+create index if not exists idx_htag_biz on hashtag_groups (business_id);
+create index if not exists idx_ptmpl_biz on post_templates (business_id);
+create index if not exists idx_appr_content on approval_steps (content_id);
+create index if not exists idx_alog_biz on activity_log (business_id, created_at desc);
+create index if not exists idx_inbox_biz on inbox_messages (business_id, handled);
+
+alter table pulse_connections enable row level security;
+alter table media_assets enable row level security;
+alter table hashtag_groups enable row level security;
+alter table post_templates enable row level security;
+alter table approval_steps enable row level security;
+alter table activity_log enable row level security;
+alter table inbox_messages enable row level security;
+alter table api_keys enable row level security;
+alter table webhook_endpoints enable row level security;
+alter table pulse_rate_limits enable row level security;
+
+-- Token tables get FORCE RLS so even table owners go through policy.
+alter table pulse_connections force row level security;
+alter table api_keys force row level security;
+
+drop policy if exists "owner rows" on pulse_connections;
+drop policy if exists "owner rows" on media_assets;
+drop policy if exists "owner rows" on hashtag_groups;
+drop policy if exists "owner rows" on post_templates;
+drop policy if exists "owner rows" on approval_steps;
+drop policy if exists "owner rows" on activity_log;
+drop policy if exists "owner rows" on inbox_messages;
+drop policy if exists "owner rows" on webhook_endpoints;
+drop policy if exists "deny all" on api_keys;
+drop policy if exists "deny all" on pulse_rate_limits;
+
+create policy "owner rows" on pulse_connections for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on media_assets for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on hashtag_groups for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on post_templates for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on approval_steps for all
+  using (exists (select 1 from pulse_content c join pulse_businesses b on b.id = c.business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true)) where c.id = content_id))
+  with check (exists (select 1 from pulse_content c join pulse_businesses b on b.id = c.business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true)) where c.id = content_id));
+create policy "owner rows" on activity_log for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on inbox_messages for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+create policy "owner rows" on webhook_endpoints for all
+  using (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))))
+  with check (exists (select 1 from pulse_businesses b where b.id = business_id and (b.owner_id is null or b.owner_id = current_setting('app.user_id', true))));
+-- api_keys + rate limits are server-only: deny all client access (owner connection bypasses RLS pre-auth).
+create policy "deny all" on api_keys for all using (false) with check (false);
+create policy "deny all" on pulse_rate_limits for all using (false) with check (false);
